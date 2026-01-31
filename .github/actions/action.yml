@@ -1078,10 +1078,10 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        echo "Add Gunyah QCOM Platform"
+        echo "Add HugeTLB support"
         cat >> "$COMMON_KERNEL_FOLDER/arch/arm64/configs/gki_defconfig" <<EOF
-        CONFIG_GUNYAH_QCOM_PLATFORM=y
-        CONFIG_QCOM_SCM=y
+        CONFIG_HUGETLBFS=y
+        CONFIG_HUGETLB_PAGE=y
         EOF
 
     - name: Add BBR
