@@ -1074,6 +1074,16 @@ runs:
         CONFIG_TMPFS_POSIX_ACL=y
         EOF
 
+    - name: Add Gunyah Qualcomm Platform Support
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "Add Gunyah QCOM Platform"
+        cat >> "$COMMON_KERNEL_FOLDER/arch/arm64/configs/gki_defconfig" <<EOF
+        CONFIG_GUNYAH_QCOM_PLATFORM=y
+        CONFIG_QCOM_SCM=y
+        EOF
+
     - name: Add BBR
       if: ${{ env.OP_BBR == 'true' }}
       shell: bash
