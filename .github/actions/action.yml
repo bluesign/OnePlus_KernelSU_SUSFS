@@ -1074,17 +1074,32 @@ runs:
         CONFIG_TMPFS_POSIX_ACL=y
         EOF
 
-    - name: Add HugeTLB support with disabled MODVERSIONS
+    - name: Add HugeTLB support (struct-safe)
       shell: bash
       run: |
         set -euo pipefail
-        echo "Add HugeTLB support, disable MODVERSIONS"
+        echo "Add HugeTLB support with struct layout preservation"
+
+        # Enable HUGETLBFS and disable MODVERSIONS
         cat >> "$COMMON_KERNEL_FOLDER/arch/arm64/configs/gki_defconfig" <<EOF
         CONFIG_HUGETLBFS=y
         CONFIG_HUGETLB_PAGE=y
         CONFIG_MODVERSIONS=n
         CONFIG_MODULE_FORCE_LOAD=y
         EOF
+
+        # Move hugetlb_usage field to end of mm_struct to preserve
+        # field offsets for stock vendor modules.
+        MM_TYPES="$COMMON_KERNEL_FOLDER/include/linux/mm_types.h"
+
+        # Remove the original 3-line #ifdef block
+        sed -i '/^#ifdef CONFIG_HUGETLB_PAGE$/{N;/hugetlb_usage/{N;d}}' "$MM_TYPES"
+
+        # Insert before ANDROID_BACKPORT_RESERVE(1) (unique anchor in mm_struct)
+        sed -i '/ANDROID_BACKPORT_RESERVE(1);/i\#ifdef CONFIG_HUGETLB_PAGE\n\t\tatomic_long_t hugetlb_usage;\n#endif' "$MM_TYPES"
+
+        echo "Patched mm_types.h - hugetlb_usage moved to end of mm_struct"
+        grep -n -A1 -B1 "hugetlb_usage" "$MM_TYPES"
 
     - name: Add BBR
       if: ${{ env.OP_BBR == 'true' }}
