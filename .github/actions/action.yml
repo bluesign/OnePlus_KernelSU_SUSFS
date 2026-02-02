@@ -1080,12 +1080,14 @@ runs:
         set -euo pipefail
         echo "Add HugeTLB support with struct layout preservation"
 
-        # Enable HUGETLBFS and disable MODVERSIONS
+        # Enable HUGETLBFS, disable MODVERSIONS, disable panic_on_oops
         cat >> "$COMMON_KERNEL_FOLDER/arch/arm64/configs/gki_defconfig" <<EOF
         CONFIG_HUGETLBFS=y
         CONFIG_HUGETLB_PAGE=y
         CONFIG_MODVERSIONS=n
         CONFIG_MODULE_FORCE_LOAD=y
+        CONFIG_PANIC_ON_OOPS=n
+        CONFIG_PANIC_ON_OOPS_VALUE=0
         EOF
 
         # Move hugetlb_usage field to end of mm_struct to preserve
