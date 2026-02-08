@@ -1034,6 +1034,21 @@ runs:
         echo "✅ Other patches applied"
         echo "::endgroup::"
 
+    - name: Apply Gunyah SWIOTLB pre-share patch
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "::group::Apply Gunyah patches"
+        cd "$COMMON_KERNEL_FOLDER"
+        if [ -f "$GITHUB_WORKSPACE/patches/0001-gunyah-preshare-swiotlb.patch" ]; then
+          echo "Applying Gunyah SWIOTLB pre-share patch..."
+          patch -p1 -F3 --forward < "$GITHUB_WORKSPACE/patches/0001-gunyah-preshare-swiotlb.patch"
+          echo "✅ Gunyah patch applied"
+        else
+          echo "No Gunyah patch found, skipping"
+        fi
+        echo "::endgroup::"
+
     - name: Apply KSU Hooks
       shell: bash
       if: ${{ env.NEED_HOOKS == 'true' }}
