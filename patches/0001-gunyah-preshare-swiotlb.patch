@@ -1,0 +1,85 @@
+--- a/drivers/virt/gunyah/vm_mgr.c
++++ b/drivers/virt/gunyah/vm_mgr.c
+@@ -625,6 +625,62 @@
+ 	return 0;
+ }
+
++/*
++ * Pre-provide all pages in a VM_MEM_SHARE binding so that the guest
++ * does not have to fault them in one-by-one via vCPU exits.
++ * Must be called after gunyah_rm_get_hyp_resources() so that extent
++ * capabilities are populated.
++ */
++static int gunyah_vm_preshare_binding(struct gunyah_vm *ghvm,
++				       struct gunyah_vm_gup_binding *b)
++{
++	unsigned int gup_flags = FOLL_LONGTERM;
++	bool write = !!(b->flags & GUNYAH_MEM_ALLOW_WRITE);
++	struct page *page;
++	struct folio *folio;
++	u64 offset;
++	int pinned, ret;
++
++	if (write)
++		gup_flags |= FOLL_WRITE;
++
++	dev_info(ghvm->parent,
++		 "Pre-sharing SHARE binding: gpa=0x%llx size=0x%llx\n",
++		 b->guest_phys_addr, b->size);
++
++	for (offset = 0; offset < b->size; ) {
++		pinned = pin_user_pages_fast(b->userspace_addr + offset, 1,
++					      gup_flags, &page);
++		if (pinned < 0)
++			return pinned;
++
++		ret = account_locked_vm(current->mm, 1, true);
++		if (ret) {
++			unpin_user_page(page);
++			return ret;
++		}
++
++		folio = page_folio(page);
++		folio_lock(folio);
++		ret = gunyah_vm_provide_folio(ghvm, folio,
++				gunyah_gpa_to_gfn(b->guest_phys_addr + offset),
++				true, write);
++		folio_unlock(folio);
++		if (ret) {
++			account_locked_vm(current->mm, 1, false);
++			unpin_user_page(page);
++			return ret;
++		}
++
++		offset += folio_size(folio);
++	}
++
++	return 0;
++}
++
+ int gunyah_gup_setup_demand_paging(struct gunyah_vm *ghvm)
+ {
+ 	struct gunyah_rm_mem_entry *entries;
+@@ -788,6 +844,21 @@
+ 		gunyah_vm_add_resource(ghvm, ghrsc);
+ 	}
+
++	/* Pre-share all VM_MEM_SHARE bindings (e.g. SWIOTLB) now that
++	 * extent capabilities are available. This avoids per-page vCPU
++	 * fault exits during early VM boot.
++	 */
++	{
++		struct gunyah_vm_gup_binding *b;
++		unsigned long idx = 0;
++
++		down_read(&ghvm->bindings_lock);
++		mt_for_each(&ghvm->bindings, b, idx, ULONG_MAX) {
++			if (b->share_type == VM_MEM_SHARE)
++				gunyah_vm_preshare_binding(ghvm, b);
++		}
++		up_read(&ghvm->bindings_lock);
++	}
++
+ 	ret = gunyah_vm_parcel_to_paged(ghvm, &ghvm->dtb.parcel,
+ 					ghvm->dtb.parcel_start,
+ 					ghvm->dtb.parcel_pages);
